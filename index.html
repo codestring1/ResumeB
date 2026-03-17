@@ -33,14 +33,12 @@
             
             .no-print { display: none !important; }
             
-            /* Break flexbox to allow natural page breaks */
             main { 
                 display: block !important; 
                 height: auto !important; 
                 overflow: visible !important; 
             }
             
-            /* Right side wrapper */
             main > div:last-child {
                 width: 100% !important;
                 height: auto !important;
@@ -54,19 +52,75 @@
                 width: 100% !important; 
                 max-width: 100% !important; 
                 margin: 0 !important; 
-                padding: 10mm 15mm !important; /* Standard printing margins */
+                padding: 10mm 15mm !important; 
                 box-shadow: none !important; 
                 overflow: visible !important;
                 height: auto !important;
                 background-color: white !important;
+                border: none !important;
             }
+            
+            .page-break-indicator { display: none !important; }
         }
         
-        /* Custom scrollbar for editor */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+        /* Multi-page Preview logic */
+        #preview-container {
+            position: relative;
+            background-image: 
+                linear-gradient(to bottom, transparent 296.5mm, #e5e7eb 296.5mm, #e5e7eb 297mm, transparent 297mm);
+            background-size: 100% 297mm;
+        }
+
+        .page-break-indicator {
+            position: absolute;
+            left: -80px;
+            width: calc(100% + 160px);
+            border-top: 2px dashed #94a3b8;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .page-break-label {
+            background: #94a3b8;
+            color: white;
+            padding: 2px 8px;
+            font-size: 10px;
+            border-radius: 4px;
+            margin-top: -10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        @media screen {
+            .editable-field {
+                outline: none;
+                border-radius: 3px;
+                transition: all 0.2s;
+                border: 1px solid transparent;
+                padding: 1px 2px;
+            }
+            .editable-field:hover {
+                background-color: #f0f4ff;
+                border-color: #c7d2fe;
+                cursor: text;
+            }
+            .editable-field:focus {
+                background-color: #f0f4ff;
+                border-color: #a5b4fc;
+                box-shadow: 0 0 0 2px #e0e7ff;
+            }
+            .editable-field:empty::before {
+                content: "(Empty)";
+                color: #9ca3af;
+                font-style: italic;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans h-screen flex flex-col overflow-hidden">
@@ -77,15 +131,22 @@
                 <i class="fa-solid fa-file-lines text-2xl"></i>
                 <h1 class="text-xl font-bold text-gray-900">HTML Resume Builder</h1>
             </div>
-            <button onclick="window.print()" class="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm font-medium">
-                <i class="fa-solid fa-download"></i>
-                <span>Download PDF</span>
-            </button>
+            <div class="flex gap-2">
+                <button onclick="window.print()" class="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm font-medium text-sm">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span>PDF</span>
+                </button>
+                <button onclick="downloadWord()" class="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm">
+                    <i class="fa-solid fa-file-word"></i>
+                    <span>Word</span>
+                </button>
+            </div>
         </div>
     </header>
 
     <main class="flex-grow flex flex-col lg:flex-row h-full overflow-hidden">
         
+        <!-- Left Side: Editor Form -->
         <div class="w-full lg:w-5/12 border-r border-gray-200 bg-white overflow-y-auto p-6 space-y-8 pb-24 no-print">
             
             <div class="flex border-b border-gray-200 mb-2">
@@ -298,9 +359,18 @@
 
         </div>
 
-        <div class="w-full lg:w-7/12 bg-gray-200 p-4 md:p-8 overflow-y-auto flex justify-center items-start">
-            <div id="preview-container" class="bg-white shadow-xl w-full max-w-[850px] min-h-[297mm] p-10 text-gray-900 leading-snug shrink-0 box-border transition-all duration-300">
-                </div>
+        <!-- Right Side: Preview Pane with Inline Editing -->
+        <div class="w-full lg:w-7/12 bg-gray-200 p-4 md:p-8 overflow-y-auto flex flex-col items-center">
+            
+            <!-- Tooltip -->
+            <div class="mb-4 text-gray-600 text-xs flex items-center bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200 no-print">
+                <i class="fa-solid fa-pen-to-square mr-2 text-indigo-500"></i>
+                <span>Tip: Click any text below to edit directly in the document!</span>
+            </div>
+
+            <div id="preview-container" class="bg-white shadow-xl w-full max-w-[850px] min-h-[297mm] p-10 text-gray-900 box-border transition-all">
+                <!-- Content injected via JavaScript -->
+            </div>
         </div>
     </main>
 
@@ -433,26 +503,15 @@
 
         function clearData() {
             if(confirm("Are you sure you want to clear all data? This cannot be undone.")) {
-                data = {
-                    mode: data.mode,
-                    jobDescription: '',
-                    settings: { font: 'default', fontSize: 10 },
-                    personal: { name: '', phone: '', email: '', linkedin: '', github: '' },
-                    summary: '',
-                    education: [],
-                    skills: [],
-                    projects: [],
-                    certifications: [],
-                    coverLetter: { jobTitle: '', companyName: '', recipientName: '', date: '', body: '' }
-                };
+                data = JSON.parse(JSON.stringify(defaultData));
                 saveDataLocally();
                 initEditor();
                 renderPreview();
             }
         }
 
-        // --- 3. STATE UPDATER ---
-        function updateData(path, value) {
+        // --- 3. STATE UPDATER (DUAL SYNC) ---
+        window.updateData = function(path, value) {
             const keys = path.split('.');
             let current = data;
             for (let i = 0; i < keys.length - 1; i++) {
@@ -462,15 +521,38 @@
             current[keys[keys.length - 1]] = value;
             saveDataLocally();
             renderPreview();
+            syncLeftEditor(path, value);
         }
+
+        function syncLeftEditor(path, value) {
+            const mapping = {
+                'personal.name': 'edit-name',
+                'personal.email': 'edit-email',
+                'personal.phone': 'edit-phone',
+                'personal.linkedin': 'edit-linkedin',
+                'personal.github': 'edit-github',
+                'summary': 'edit-summary',
+                'jobDescription': 'edit-jd'
+            };
+            
+            if (mapping[path]) {
+                const el = document.getElementById(mapping[path]);
+                if (el) el.value = value;
+            } else {
+                initEditor();
+            }
+        }
+
+        const editAttrs = (path, singleLine = true) => {
+            let keypress = singleLine ? `onkeypress="if(event.key==='Enter'){event.preventDefault();this.blur();}"` : '';
+            return `contenteditable="true" spellcheck="false" onblur="updateData('${path}', this.innerText)" ${keypress} class="editable-field"`;
+        };
 
         // --- 4. EDITOR RENDERERS ---
         function renderEducationEditor() {
             const container = document.getElementById('education-editor-container');
             if(!container) return;
             container.innerHTML = data.education.map((edu, idx) => {
-                
-                // Toggle between showing the Coursework field or showing an "Add" button
                 let courseworkSection = '';
                 if (edu.coursework !== undefined && edu.coursework !== null) {
                     courseworkSection = `
@@ -479,7 +561,7 @@
                                 <label class="block text-sm font-medium text-gray-700">Relevant Coursework</label>
                                 <button onclick="updateData('education.${idx}.coursework', null)" class="text-red-400 hover:text-red-600 text-xs flex items-center"><i class="fa-solid fa-xmark mr-1"></i> Remove</button>
                             </div>
-                            <textarea oninput="updateData('education.${idx}.coursework', this.value)" rows="2" class="w-full p-2 border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-indigo-500 text-sm" placeholder="List relevant courses here...">${edu.coursework}</textarea>
+                            <textarea oninput="updateData('education.${idx}.coursework', this.value)" rows="2" class="w-full p-2 border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-indigo-500 text-sm">${edu.coursework}</textarea>
                         </div>
                     `;
                 } else {
@@ -630,7 +712,6 @@
         }
 
         function addEducation() { 
-            // Note: coursework is null by default so it stays hidden until requested
             data.education.push({ institution: 'New Institution', degree: '', date: '', gpa: '', coursework: null }); 
             renderEducationEditor(); 
             renderPreview(); 
@@ -703,7 +784,7 @@
             renderPreview();
         }
 
-        // --- 8. RENDER THE LIVE PREVIEW (WITH TEMPLATES & TYPOGRAPHY) ---
+        // --- 8. RENDER THE LIVE PREVIEW ---
         function renderPreview() {
             const container = document.getElementById('preview-container');
             
@@ -711,6 +792,22 @@
                 renderCoverLetterPreview(container);
             } else {
                 renderResumePreview(container);
+            }
+
+            // Remove existing page break lines
+            document.querySelectorAll('.page-break-indicator').forEach(el => el.remove());
+
+            // Add visual page break indicators if content is long
+            const heightPx = container.scrollHeight;
+            const pageHeightPx = (297 * 96) / 25.4; // A4 height in pixels approx (1122.5px)
+            const numPages = Math.ceil(heightPx / pageHeightPx);
+
+            for(let i = 1; i < numPages; i++) {
+                const indicator = document.createElement('div');
+                indicator.className = 'page-break-indicator';
+                indicator.style.top = (i * pageHeightPx) + 'px';
+                indicator.innerHTML = `<span class="page-break-label">Page ${i+1} Start</span>`;
+                container.appendChild(indicator);
             }
         }
 
@@ -764,9 +861,7 @@
                     break;
             }
 
-            if (fontSetting !== 'default') {
-                fontStyle = `font-family: ${fontSetting};`;
-            }
+            if (fontSetting !== 'default') fontStyle = `font-family: ${fontSetting};`;
             container.setAttribute('style', fontStyle);
 
             let personalizedBody = (data.coverLetter.body || '')
@@ -777,30 +872,25 @@
 
             container.innerHTML = `
                 <div class="${headerClass}">
-                    <h1 class="${nameClass}">${data.personal.name}</h1>
+                    <h1 class="${nameClass}" ${editAttrs('personal.name')}>${data.personal.name}</h1>
                     <div class="flex flex-wrap ${contactAlign} items-center gap-x-3 gap-y-1 text-[${baseSize - 1}pt] ${textColor} mt-1">
-                        ${data.personal.phone ? `<span class="flex items-center"><i class="fa-solid fa-phone text-[10px] mr-1.5"></i> ${data.personal.phone}</span>` : ''}
+                        ${data.personal.phone ? `<span class="flex items-center"><i class="fa-solid fa-phone text-[10px] mr-1.5"></i> <span ${editAttrs('personal.phone')}>${data.personal.phone}</span></span>` : ''}
                         ${data.personal.phone && data.personal.email ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.email ? `<a href="mailto:${data.personal.email}" class="flex items-center ${linkColor} hover:underline"><i class="fa-solid fa-envelope text-[10px] mr-1.5"></i> ${data.personal.email}</a>` : ''}
+                        ${data.personal.email ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-solid fa-envelope text-[10px] mr-1.5"></i> <span ${editAttrs('personal.email')}>${data.personal.email}</span></span>` : ''}
                         ${(data.personal.phone || data.personal.email) && data.personal.linkedin ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.linkedin ? `<a href="${data.personal.linkedin}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> LinkedIn</a>` : ''}
+                        ${data.personal.linkedin ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> <span ${editAttrs('personal.linkedin')}>${data.personal.linkedin}</span></span>` : ''}
                         ${(data.personal.phone || data.personal.email || data.personal.linkedin) && data.personal.github ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.github ? `<a href="${data.personal.github}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> GitHub</a>` : ''}
+                        ${data.personal.github ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> <span ${editAttrs('personal.github')}>${data.personal.github}</span></span>` : ''}
                     </div>
                 </div>
-
                 <div class="${szBase} ${textColor}">
-                    <p class="mb-6">${data.coverLetter.date}</p>
-                    
+                    <p class="mb-6" ${editAttrs('coverLetter.date')}>${data.coverLetter.date}</p>
                     <div class="mb-6">
-                        <p class="font-bold">${data.coverLetter.recipientName}</p>
-                        <p>${data.coverLetter.companyName}</p>
+                        <p class="font-bold" ${editAttrs('coverLetter.recipientName')}>${data.coverLetter.recipientName}</p>
+                        <p ${editAttrs('coverLetter.companyName')}>${data.coverLetter.companyName}</p>
                     </div>
-
                     <p class="mb-4">Dear ${data.coverLetter.recipientName},</p>
-                    
-                    ${paragraphs}
-                    
+                    <div ${editAttrs('coverLetter.body', false)}>${paragraphs}</div>
                     <div class="mt-8">
                         <p class="mb-8">Sincerely,</p>
                         <p class="font-bold">${data.personal.name}</p>
@@ -814,12 +904,10 @@
             const baseSize = data.settings?.fontSize || 10;
             const fontSetting = data.settings?.font || 'default';
             
-            // Scalable Font Sizes
             const szBase = `text-[${baseSize}pt]`;
             const szSmall = `text-[${baseSize - 0.5}pt]`;
             const szContact = `text-[${baseSize > 9 ? baseSize - 1 : 9}pt]`;
 
-            // Template Variables
             let fontStyle = '';
             let headerClass = '';
             let nameClass = '';
@@ -837,8 +925,6 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-b-2 border-gray-800';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-bold uppercase mb-1.5 pb-0.5 tracking-wide text-gray-900`;
-                    textColor = 'text-gray-900';
-                    linkColor = 'text-blue-700';
                     break;
                 case 'modern':
                     fontStyle = 'font-family: "Segoe UI", Roboto, Helvetica, sans-serif;';
@@ -847,8 +933,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b-2 border-blue-800';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-bold uppercase mb-2 pb-0.5 text-blue-800 tracking-wider`;
-                    textColor = 'text-gray-900';
-                    linkColor = 'text-blue-800';
                     break;
                 case 'academic':
                     fontStyle = 'font-family: "Times New Roman", Times, serif;';
@@ -857,8 +941,6 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-b border-black';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-bold mb-1 pb-0.5 text-black uppercase`;
-                    textColor = 'text-black';
-                    linkColor = 'text-black underline';
                     break;
                 case 'executive':
                     fontStyle = 'font-family: Garamond, Georgia, serif;';
@@ -867,8 +949,6 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-b border-slate-400';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-bold uppercase mb-1.5 pb-0.5 tracking-widest text-slate-900`;
-                    textColor = 'text-slate-900';
-                    linkColor = 'text-slate-800';
                     break;
                 case 'clean':
                     fontStyle = 'font-family: Calibri, Tahoma, sans-serif;';
@@ -877,8 +957,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b-2 border-teal-700';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-bold text-teal-700 mb-1.5 pb-0.5`;
-                    textColor = 'text-gray-800';
-                    linkColor = 'text-teal-700';
                     break;
                 case 'minimalist':
                     fontStyle = 'font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;';
@@ -887,8 +965,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b border-gray-200';
                     sectionTitleClass = `text-[${baseSize}pt] font-bold uppercase tracking-widest text-gray-500 mb-2 pb-1`;
-                    textColor = 'text-gray-800';
-                    linkColor = 'text-gray-600 hover:text-gray-900';
                     break;
                 case 'linkedin':
                     fontStyle = 'font-family: Arial, Helvetica, sans-serif;';
@@ -897,8 +973,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b border-gray-300';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-bold text-gray-900 mb-2 pb-1`;
-                    textColor = 'text-gray-800';
-                    linkColor = 'text-[#0a66c2]';
                     break;
                 case 'harvard':
                     fontStyle = 'font-family: Garamond, "Times New Roman", serif;';
@@ -907,8 +981,6 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-b-2 border-black';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-bold text-black uppercase mb-1.5 pb-0.5 text-center`;
-                    textColor = 'text-black';
-                    linkColor = 'text-black';
                     break;
                 case 'google':
                     fontStyle = 'font-family: Roboto, Arial, sans-serif;';
@@ -917,8 +989,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b border-[#dadce0]';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-medium text-[#1a73e8] uppercase mb-1.5 pb-1`;
-                    textColor = 'text-[#3c4043]';
-                    linkColor = 'text-[#1a73e8]';
                     break;
                 case 'finance':
                     fontStyle = 'font-family: Georgia, serif;';
@@ -927,8 +997,6 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-b border-black';
                     sectionTitleClass = `text-[${baseSize}pt] font-bold text-black uppercase mb-1 pb-0.5 tracking-wider`;
-                    textColor = 'text-black';
-                    linkColor = 'text-black';
                     break;
                 case 'tech':
                     fontStyle = 'font-family: "Segoe UI", Tahoma, sans-serif;';
@@ -937,8 +1005,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b-4 border-gray-900';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-black text-gray-900 uppercase mb-2 pb-0.5`;
-                    textColor = 'text-gray-800';
-                    linkColor = 'text-indigo-600';
                     break;
                 case 'startup':
                     fontStyle = 'font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;';
@@ -947,8 +1013,6 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-t border-b border-black py-1 mb-2 mt-4';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-bold text-black uppercase tracking-widest`;
-                    textColor = 'text-black';
-                    linkColor = 'text-black font-medium underline';
                     break;
                 case 'creative':
                     fontStyle = 'font-family: "Trebuchet MS", "Lucida Sans Unicode", sans-serif;';
@@ -957,8 +1021,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b-2 border-purple-200';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-bold text-purple-800 uppercase mb-2 pb-1`;
-                    textColor = 'text-gray-700';
-                    linkColor = 'text-purple-600';
                     break;
                 case 'engineering':
                     fontStyle = 'font-family: Tahoma, Verdana, sans-serif;';
@@ -967,8 +1029,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b-2 border-blue-900';
                     sectionTitleClass = `text-[${baseSize + 1}pt] font-bold text-blue-900 uppercase mb-1.5 pb-0.5 bg-gray-100 pl-1`;
-                    textColor = 'text-gray-900';
-                    linkColor = 'text-blue-800';
                     break;
                 case 'federal':
                     fontStyle = 'font-family: Arial, sans-serif;';
@@ -977,8 +1037,6 @@
                     contactAlign = 'justify-start';
                     sectionBorder = 'border-b border-black';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-bold text-black bg-gray-200 px-2 py-0.5 mb-1.5 inline-block w-full`;
-                    textColor = 'text-black';
-                    linkColor = 'text-black underline';
                     break;
                 case 'elegant':
                     fontStyle = 'font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;';
@@ -987,116 +1045,91 @@
                     contactAlign = 'justify-center';
                     sectionBorder = 'border-b border-slate-300';
                     sectionTitleClass = `text-[${baseSize + 2}pt] font-semibold text-slate-600 uppercase mb-2 pb-1 text-center`;
-                    textColor = 'text-slate-700';
-                    linkColor = 'text-slate-600';
                     break;
             }
 
-            if (fontSetting !== 'default') {
-                fontStyle = `font-family: ${fontSetting};`;
-            }
-
+            if (fontSetting !== 'default') fontStyle = `font-family: ${fontSetting};`;
             container.setAttribute('style', fontStyle);
             
-            // Generate HTML for Sections
-            let educationHTML = '';
-            if (data.education.length > 0) {
-                educationHTML = `
-                    <div class="mb-3">
-                        <h2 class="${sectionTitleClass} ${sectionBorder}">Education</h2>
-                        ${data.education.map(edu => `
-                            <div class="mb-2 ${szBase}">
-                                <div class="flex justify-between font-bold ${textColor}"><span>${edu.institution}</span></div>
-                                <div class="flex justify-between ${textColor}">
-                                    <span>${edu.degree}</span>
-                                    <span class="font-medium">${edu.date}</span>
+            let educationHTML = data.education.length > 0 ? `
+                <div class="mb-3">
+                    <h2 class="${sectionTitleClass} ${sectionBorder}">Education</h2>
+                    ${data.education.map((edu, idx) => `
+                        <div class="mb-2 ${szBase}">
+                            <div class="flex justify-between font-bold ${textColor}">
+                                <span ${editAttrs(`education.${idx}.institution`)}>${edu.institution}</span>
+                            </div>
+                            <div class="flex justify-between ${textColor}">
+                                <span ${editAttrs(`education.${idx}.degree`)}>${edu.degree}</span>
+                                <span class="font-medium shrink-0 ml-2" ${editAttrs(`education.${idx}.date`)}>${edu.date}</span>
+                            </div>
+                            <div class="mt-0.5 ${textColor}"><span class="font-medium mr-2" ${editAttrs(`education.${idx}.gpa`)}>${edu.gpa}</span></div>
+                            ${(edu.coursework && edu.coursework.trim() !== '') ? `<div class="mt-0.5 ${textColor}"><span class="font-semibold ${szSmall}">Relevant Coursework: </span><span class="${szSmall}" ${editAttrs(`education.${idx}.coursework`, false)}>${edu.coursework}</span></div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>` : '';
+
+            let skillsHTML = data.skills.length > 0 ? `
+                <div class="mb-3">
+                    <h2 class="${sectionTitleClass} ${sectionBorder}">Technical Skills</h2>
+                    <div class="${szBase} space-y-0.5 ${textColor}">
+                        ${data.skills.map((skill, idx) => `
+                            <div><span class="font-bold" ${editAttrs(`skills.${idx}.category`)}>${skill.category}</span>: <span ${editAttrs(`skills.${idx}.items`)}>${skill.items}</span></div>
+                        `).join('')}
+                    </div>
+                </div>` : '';
+
+            let projectsHTML = data.projects.length > 0 ? `
+                <div class="mb-3">
+                    <h2 class="${sectionTitleClass} ${sectionBorder}">Experience & Projects</h2>
+                    <div class="space-y-3 ${szBase} ${textColor}">
+                        ${data.projects.map((proj, pIdx) => `
+                            <div>
+                                <div class="flex justify-between mb-0.5">
+                                    <span class="font-bold" ${editAttrs(`projects.${pIdx}.title`)}>${proj.title}</span>
+                                    <span class="font-medium shrink-0 ml-2" ${editAttrs(`projects.${pIdx}.date`)}>${proj.date}</span>
                                 </div>
-                                <div class="mt-0.5 ${textColor}"><span class="font-medium mr-2">${edu.gpa}</span></div>
-                                ${(edu.coursework && edu.coursework.trim() !== '') ? `<div class="mt-0.5 ${textColor}"><span class="font-semibold ${szSmall}">Relevant Coursework: </span><span class="${szSmall}">${edu.coursework}</span></div>` : ''}
+                                <ul class="list-disc pl-4 space-y-0.5 ${szBase} text-justify">
+                                    ${proj.bullets.map((bullet, bIdx) => `<li class="pl-1 leading-snug" ${editAttrs(`projects.${pIdx}.bullets.${bIdx}`, false)}>${bullet}</li>`).join('')}
+                                </ul>
                             </div>
                         `).join('')}
                     </div>
-                `;
-            }
+                </div>` : '';
 
-            let skillsHTML = '';
-            if (data.skills.length > 0) {
-                skillsHTML = `
-                    <div class="mb-3">
-                        <h2 class="${sectionTitleClass} ${sectionBorder}">Technical Skills</h2>
-                        <div class="${szBase} space-y-0.5 ${textColor}">
-                            ${data.skills.map(skill => `
-                                <div><span class="font-bold">${skill.category}: </span><span>${skill.items}</span></div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
+            let certsHTML = data.certifications.length > 0 ? `
+                <div class="mb-3">
+                    <h2 class="${sectionTitleClass} ${sectionBorder}">Certifications</h2>
+                    <ul class="${szBase} space-y-0.5 list-none ${textColor}">
+                        ${data.certifications.map((cert, idx) => `<li>&#8226; <span ${editAttrs(`certifications.${idx}`)}>${cert}</span></li>`).join('')}
+                    </ul>
+                </div>` : '';
 
-            let projectsHTML = '';
-            if (data.projects.length > 0) {
-                projectsHTML = `
-                    <div class="mb-3">
-                        <h2 class="${sectionTitleClass} ${sectionBorder}">Experience & Projects</h2>
-                        <div class="space-y-3 ${szBase} ${textColor}">
-                            ${data.projects.map(proj => `
-                                <div>
-                                    <div class="flex justify-between mb-0.5">
-                                        <span class="font-bold">${proj.title}</span>
-                                        <span class="font-medium">${proj.date}</span>
-                                    </div>
-                                    <ul class="list-disc pl-4 space-y-0.5 ${szBase} text-justify">
-                                        ${proj.bullets.map(bullet => `<li class="pl-1 leading-snug">${bullet}</li>`).join('')}
-                                    </ul>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-
-            let certsHTML = '';
-            if (data.certifications.length > 0) {
-                certsHTML = `
-                    <div class="mb-3">
-                        <h2 class="${sectionTitleClass} ${sectionBorder}">Certifications</h2>
-                        <ul class="${szBase} space-y-0.5 list-none ${textColor}">
-                            ${data.certifications.map(cert => `<li>&#8226; ${cert}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-
-            // Assemble Full Preview Template
             container.innerHTML = `
                 <div class="${headerClass}">
-                    <h1 class="${nameClass}">${data.personal.name}</h1>
+                    <h1 class="${nameClass}" ${editAttrs('personal.name')}>${data.personal.name}</h1>
                     <div class="flex flex-wrap ${contactAlign} items-center gap-x-3 gap-y-1 ${szContact} ${textColor} mt-1">
-                        ${data.personal.phone ? `<span class="flex items-center"><i class="fa-solid fa-phone text-[10px] mr-1.5"></i> ${data.personal.phone}</span>` : ''}
+                        ${data.personal.phone ? `<span class="flex items-center"><i class="fa-solid fa-phone text-[10px] mr-1.5"></i> <span ${editAttrs('personal.phone')}>${data.personal.phone}</span></span>` : ''}
                         ${data.personal.phone && data.personal.email ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.email ? `<a href="mailto:${data.personal.email}" class="flex items-center ${linkColor} hover:underline"><i class="fa-solid fa-envelope text-[10px] mr-1.5"></i> ${data.personal.email}</a>` : ''}
+                        ${data.personal.email ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-solid fa-envelope text-[10px] mr-1.5"></i> <span ${editAttrs('personal.email')}>${data.personal.email}</span></span>` : ''}
                         ${(data.personal.phone || data.personal.email) && data.personal.linkedin ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.linkedin ? `<a href="${data.personal.linkedin}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> LinkedIn</a>` : ''}
+                        ${data.personal.linkedin ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> <span ${editAttrs('personal.linkedin')}>${data.personal.linkedin}</span></span>` : ''}
                         ${(data.personal.phone || data.personal.email || data.personal.linkedin) && data.personal.github ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.github ? `<a href="${data.personal.github}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> GitHub</a>` : ''}
+                        ${data.personal.github ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> <span ${editAttrs('personal.github')}>${data.personal.github}</span></span>` : ''}
                     </div>
                 </div>
-
                 ${data.summary ? `
                 <div class="mb-3">
                     <h2 class="${sectionTitleClass} ${sectionBorder}">Professional Summary</h2>
-                    <p class="${szBase} text-justify leading-snug ${textColor}">${data.summary}</p>
+                    <p class="${szBase} text-justify leading-snug ${textColor}" ${editAttrs('summary', false)}>${data.summary}</p>
                 </div>` : ''}
-
                 ${educationHTML}
                 ${skillsHTML}
                 ${projectsHTML}
                 ${certsHTML}
             `;
             
-            if (data.mode === 'resume') {
-                calculateATSScore();
-            }
+            if (data.mode === 'resume') calculateATSScore();
         }
 
         // --- 9. ATS SCORE CALCULATOR ---
@@ -1104,166 +1137,132 @@
             let score = 0;
             let feedback = [];
             let breakdown = [];
-            
-            // Build a raw searchable string of the resume contents for keyword scanning
-            const resumeContentString = JSON.stringify({
-                personal: data.personal, 
-                summary: data.summary, 
-                education: data.education, 
-                skills: data.skills, 
-                projects: data.projects, 
-                certs: data.certifications
-            }).toLowerCase();
+            const resumeContentString = JSON.stringify(data).toLowerCase();
 
-            // 1. Completeness & Length (max 20)
             let completeScore = 0;
-            let hasEmail = !!data.personal.email;
-            let hasPhone = !!data.personal.phone;
-            let hasLinks = !!(data.personal.linkedin || data.personal.github);
-            if (hasEmail) completeScore += 4;
-            if (hasPhone) completeScore += 4;
-            if (hasLinks) completeScore += 2;
-            
-            let wordCount = resumeContentString.split(/\s+/).length;
-            if (wordCount > 150 && wordCount < 900) {
-                completeScore += 10;
-            } else {
-                completeScore += 5;
-                feedback.push("Length Check: Resume may be excessively short or verbose.");
-            }
+            if (data.personal.email) completeScore += 5;
+            if (data.personal.phone) completeScore += 5;
+            if (data.summary.length > 50) completeScore += 10;
             score += completeScore;
-            breakdown.push({ name: 'Completeness & Length', score: completeScore, max: 20 });
-            if (!hasEmail || !hasPhone) feedback.push("Include full contact details (Email, Phone).");
+            breakdown.push({ name: 'Completeness', score: completeScore, max: 20 });
 
-            // 2. Structure & Formatting (max 20)
             let formatScore = 0;
-            if (data.education && data.education.length > 0) formatScore += 5;
-            else feedback.push("Missing Education section. ATS systems expect standard headings.");
-            
-            if (data.skills && data.skills.length > 0) formatScore += 5;
-            else feedback.push("Missing Skills section. Highly detrimental to parsing.");
-
-            if (data.projects && data.projects.length > 0) formatScore += 10;
-            else feedback.push("Missing Projects/Experience section.");
-            
+            if (data.education.length > 0) formatScore += 7;
+            if (data.skills.length > 0) formatScore += 7;
+            if (data.projects.length > 0) formatScore += 6;
             score += formatScore;
-            breakdown.push({ name: 'Structure & Formatting', score: formatScore, max: 20 });
+            breakdown.push({ name: 'Structure', score: formatScore, max: 20 });
 
-            // 3. Experience Relevance & Metrics (max 30)
-            let expScore = 0;
-            const actionVerbs = ['managed', 'led', 'developed', 'engineered', 'implemented', 'built', 'architected', 'designed', 'optimized', 'validated', 'programmed', 'integrated', 'achieved', 'reduced', 'increased', 'spearheaded'];
-            let verbCount = 0;
-            let hasMetrics = false;
-            
-            if (data.projects) {
-                data.projects.forEach(p => {
-                    p.bullets.forEach(b => {
-                        const words = b.trim().toLowerCase().split(/\s+/);
-                        if (actionVerbs.includes(words[0])) verbCount++;
-                        if (/\d+%|\d+x|\d+ k|\d+m|\$[0-9]+/i.test(b) || /[0-9]+/.test(b)) hasMetrics = true;
-                    });
-                });
-            }
-            
-            if (verbCount >= 3) expScore += 10;
-            else feedback.push("Start project bullets with strong action verbs (e.g., Developed, Managed).");
-            
-            if (hasMetrics) expScore += 10;
-            else feedback.push("Include quantifiable metrics (%, numbers) to prove your impact contextually.");
-            
-            if (data.certifications && data.certifications.length > 0) {
-                expScore += 10;
-            } else {
-                expScore += 5;
-                feedback.push("Add Certifications if possible to enhance qualification relevance.");
-            }
-            score += expScore;
-            breakdown.push({ name: 'Experience Relevance & Metrics', score: expScore, max: 30 });
-
-            // 4. Keyword Matching and Density (max 30) - Based on Job Description
             let keywordScore = 0;
-            if (data.jobDescription && data.jobDescription.trim().length > 30) {
-                // Very basic NLP extraction of keywords from the provided JD
-                const stopWords = ['and','the','with','for','this','that','from','your','have','will','are','you','can','our','we','as','an','be','or','in','of','to','a','is','on', 'which', 'their', 'they', 'what', 'who'];
-                let jdWords = data.jobDescription.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
-                
-                let freq = {};
-                jdWords.forEach(w => {
-                    if (w.length > 3 && !stopWords.includes(w)) {
-                        freq[w] = (freq[w] || 0) + 1;
-                    }
-                });
-                
-                // Get top 12 most frequent meaningful words from the Job Description
-                let topKeywords = Object.keys(freq).sort((a,b) => freq[b] - freq[a]).slice(0, 12);
-                
+            if (data.jobDescription && data.jobDescription.trim().length > 20) {
+                const words = data.jobDescription.toLowerCase().match(/\b(\w+)\b/g) || [];
+                const uniqueWords = [...new Set(words)].filter(w => w.length > 4);
                 let matches = 0;
-                topKeywords.forEach(kw => {
+                uniqueWords.slice(0, 15).forEach(kw => {
                     if (resumeContentString.includes(kw)) matches++;
                 });
-                
-                let matchPercentage = matches / topKeywords.length;
-                
-                if (matchPercentage >= 0.70) keywordScore = 30;
-                else if (matchPercentage >= 0.50) keywordScore = 20;
-                else if (matchPercentage >= 0.30) keywordScore = 10;
-                else keywordScore = 5;
-                
-                if (matchPercentage < 0.70) {
-                    let missing = topKeywords.filter(kw => !resumeContentString.includes(kw)).slice(0, 3).join(', ');
-                    feedback.push(`Improve Semantic Match: Consider integrating keywords related to: "${missing}".`);
-                } else {
-                    feedback.push(`Strong Semantic Match! Found ${Math.round(matchPercentage*100)}% of the core JD keywords.`);
-                }
+                keywordScore = Math.round((matches / 15) * 60);
+                feedback.push(`Keyword Match: ${matches}/15 critical terms found.`);
             } else {
-                // Fallback if no JD is provided
-                keywordScore = 15;
-                feedback.push("Paste a Job Description (JD) to calculate specific Keyword & Semantic matching.");
+                keywordScore = 30;
+                feedback.push("Paste a Job Description (JD) to improve match score.");
             }
             score += keywordScore;
-            breakdown.push({ name: 'Keyword & Semantic Match (JD)', score: keywordScore, max: 30 });
+            breakdown.push({ name: 'JD Relevance', score: keywordScore, max: 60 });
 
-            // Cap at 100
-            score = Math.min(score, 100);
-
-            // Render UI
             const scoreCircle = document.getElementById('ats-score-circle');
-            const feedbackList = document.getElementById('ats-feedback-list');
+            const fbList = document.getElementById('ats-feedback-list');
             const breakdownContainer = document.getElementById('ats-breakdown');
 
-            if (scoreCircle && feedbackList && breakdownContainer) {
+            if (scoreCircle && fbList && breakdownContainer) {
                 scoreCircle.innerText = score;
-                scoreCircle.className = `flex items-center justify-center w-14 h-14 rounded-full border-4 font-bold text-xl shrink-0 transition-colors duration-500 ${score >= 80 ? 'border-green-500 text-green-600 bg-green-50' : score >= 60 ? 'border-yellow-500 text-yellow-600 bg-yellow-50' : 'border-red-500 text-red-600 bg-red-50'}`;
-
-                // Populate Breakdown
+                scoreCircle.className = `flex items-center justify-center w-12 h-12 rounded-full border-4 font-bold text-lg ${score >= 80 ? 'border-green-500 text-green-600 bg-green-50' : score >= 60 ? 'border-yellow-500 text-yellow-600 bg-yellow-50' : 'border-red-500 text-red-600 bg-red-50'}`;
+                fbList.innerHTML = feedback.map(f => `<li class="text-[10px] text-gray-500 leading-tight">&#8226; ${f}</li>`).join('');
                 breakdownContainer.innerHTML = breakdown.map(item => `
-                    <div class="flex justify-between items-center mb-1 mt-2">
-                        <span class="text-gray-600 font-medium">${item.name}</span>
-                        <span class="font-bold ${item.score === item.max ? 'text-green-600' : (item.score > 0 ? 'text-yellow-600' : 'text-red-500')}">${item.score}/${item.max}</span>
+                    <div class="flex justify-between items-center mb-1">
+                        <span>${item.name}</span>
+                        <span class="font-bold">${item.score}/${item.max}</span>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                        <div class="${item.score === item.max ? 'bg-green-500' : (item.score > 0 ? 'bg-yellow-500' : 'bg-red-500')} h-1.5 rounded-full transition-all duration-500" style="width: ${(item.score/item.max)*100}%"></div>
+                    <div class="w-full bg-gray-200 rounded-full h-1">
+                        <div class="bg-indigo-500 h-1 rounded-full" style="width: ${(item.score/item.max)*100}%"></div>
                     </div>
                 `).join('');
-
-                // Populate Feedback
-                if (feedback.length === 0) {
-                    feedbackList.innerHTML = `<li class="text-xs text-green-600 font-medium"><i class="fa-solid fa-check-circle mr-1"></i> Excellent! Your resume is highly optimized based on the parameters.</li>`;
-                } else {
-                    feedbackList.innerHTML = feedback.map(f => `<li class="text-xs ${f.includes('Strong Semantic') ? 'text-green-600' : 'text-red-600'} mb-1 leading-tight"><i class="fa-solid ${f.includes('Strong Semantic') ? 'fa-check-circle' : 'fa-circle-exclamation'} mr-1"></i>${f}</li>`).join('');
-                }
             }
         }
+        
+        // --- 10. DOWNLOAD WORD FUNCTION ---
+        function downloadWord() {
+            // Remove indicators for clean export
+            document.querySelectorAll('.page-break-indicator').forEach(el => el.style.display = 'none');
+            
+            const content = document.getElementById('preview-container').innerHTML;
+            const containerStyle = document.getElementById('preview-container').getAttribute('style') || '';
+            
+            // Build specialized Word HTML header with A4 sizing and margin preservation
+            const preHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Resume</title>
+                <!--[if gte mso 9]>
+                <xml>
+                    <w:WordDocument>
+                        <w:View>Print</w:View>
+                        <w:Zoom>90</w:Zoom>
+                        <w:DoNotOptimizeForBrowser/>
+                    </w:WordDocument>
+                </xml>
+                <![endif]-->
+                <style>
+                    @page {
+                        size: 21cm 29.7cm;
+                        margin: 1cm 1.5cm 1cm 1.5cm;
+                        mso-page-orientation: portrait;
+                    }
+                    body { 
+                        ${containerStyle} 
+                        font-family: 'Calibri', 'Arial', sans-serif;
+                        line-height: 1.15;
+                    }
+                    h1, h2, h3, h4 { margin-top: 0; margin-bottom: 5pt; }
+                    p, ul { margin-top: 0; margin-bottom: 8pt; }
+                    ul { list-style-type: disc; margin-left: 20pt; }
+                    .flex { display: block; }
+                    .justify-between { display: block; }
+                    .shrink-0 { display: inline-block; float: right; }
+                    .text-justify { text-align: justify; }
+                    .border-b { border-bottom: 1pt solid #000000; padding-bottom: 2pt; margin-bottom: 5pt; }
+                    .border-b-2 { border-bottom: 1.5pt solid #000000; padding-bottom: 2pt; margin-bottom: 5pt; }
+                    .border-b-4 { border-bottom: 3pt solid #000000; padding-bottom: 2pt; margin-bottom: 5pt; }
+                    .uppercase { text-transform: uppercase; }
+                    .font-bold { font-weight: bold; }
+                    .text-right { text-align: right; }
+                    /* Simplified Tailwind replacements for Word compatibility */
+                    [class*="text-["] { font-size: 10pt; }
+                </style>
+            </head>
+            <body>`;
+            
+            const postHtml = "</body></html>";
+            const html = preHtml + content + postHtml;
+            
+            const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+            const filename = (data.personal.name ? data.personal.name.replace(/\s+/g, '_') : 'Resume') + '.doc';
+            const downloadLink = document.createElement("a");
+            document.body.appendChild(downloadLink);
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = filename;
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            
+            // Restore indicators
+            document.querySelectorAll('.page-break-indicator').forEach(el => el.style.display = 'flex');
+        }
 
-        // --- 10. START APP ON LOAD ---
         window.onload = () => {
             loadDataLocally();
             initEditor();
-            if (data.mode === 'coverLetter') {
-                switchMode('coverLetter'); // Ensure UI matches saved state
-            } else {
-                renderPreview();
-            }
+            if (data.mode === 'coverLetter') switchMode('coverLetter');
+            else renderPreview();
         };
 
     </script>
