@@ -61,6 +61,10 @@
             }
             
             .page-break-indicator { display: none !important; }
+            
+            /* Ensure links don't show URLs in print if we want clean text, 
+               but standard resumes often just show the text anyway */
+            a { text-decoration: none !important; color: inherit !important; }
         }
         
         ::-webkit-scrollbar { width: 8px; }
@@ -811,6 +815,13 @@
             }
         }
 
+        // Helper to ensure URL starts with protocol for valid <a> tags
+        function formatLink(url) {
+            if (!url) return '#';
+            if (url.startsWith('http://') || url.startsWith('https://')) return url;
+            return 'https://' + url;
+        }
+
         function renderCoverLetterPreview(container) {
             const template = document.getElementById('cl-template-select').value;
             const baseSize = data.settings?.fontSize || 10;
@@ -878,9 +889,9 @@
                         ${data.personal.phone && data.personal.email ? '<span class="text-gray-400">|</span>' : ''}
                         ${data.personal.email ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-solid fa-envelope text-[10px] mr-1.5"></i> <span ${editAttrs('personal.email')}>${data.personal.email}</span></span>` : ''}
                         ${(data.personal.phone || data.personal.email) && data.personal.linkedin ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.linkedin ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> <span ${editAttrs('personal.linkedin')}>${data.personal.linkedin}</span></span>` : ''}
+                        ${data.personal.linkedin ? `<a href="${formatLink(data.personal.linkedin)}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> <span>LinkedIn</span></a>` : ''}
                         ${(data.personal.phone || data.personal.email || data.personal.linkedin) && data.personal.github ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.github ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> <span ${editAttrs('personal.github')}>${data.personal.github}</span></span>` : ''}
+                        ${data.personal.github ? `<a href="${formatLink(data.personal.github)}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> <span>GitHub</span></a>` : ''}
                     </div>
                 </div>
                 <div class="${szBase} ${textColor}">
@@ -1113,9 +1124,9 @@
                         ${data.personal.phone && data.personal.email ? '<span class="text-gray-400">|</span>' : ''}
                         ${data.personal.email ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-solid fa-envelope text-[10px] mr-1.5"></i> <span ${editAttrs('personal.email')}>${data.personal.email}</span></span>` : ''}
                         ${(data.personal.phone || data.personal.email) && data.personal.linkedin ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.linkedin ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> <span ${editAttrs('personal.linkedin')}>${data.personal.linkedin}</span></span>` : ''}
+                        ${data.personal.linkedin ? `<a href="${formatLink(data.personal.linkedin)}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-linkedin text-[10px] mr-1.5"></i> <span>LinkedIn</span></a>` : ''}
                         ${(data.personal.phone || data.personal.email || data.personal.linkedin) && data.personal.github ? '<span class="text-gray-400">|</span>' : ''}
-                        ${data.personal.github ? `<span class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> <span ${editAttrs('personal.github')}>${data.personal.github}</span></span>` : ''}
+                        ${data.personal.github ? `<a href="${formatLink(data.personal.github)}" target="_blank" class="flex items-center ${linkColor} hover:underline"><i class="fa-brands fa-github text-[10px] mr-1.5"></i> <span>GitHub</span></a>` : ''}
                     </div>
                 </div>
                 ${data.summary ? `
@@ -1198,7 +1209,6 @@
             const content = document.getElementById('preview-container').innerHTML;
             const containerStyle = document.getElementById('preview-container').getAttribute('style') || '';
             
-            // Build specialized Word HTML header with A4 sizing and margin preservation
             const preHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head>
                 <meta charset='utf-8'>
@@ -1236,7 +1246,7 @@
                     .uppercase { text-transform: uppercase; }
                     .font-bold { font-weight: bold; }
                     .text-right { text-align: right; }
-                    /* Simplified Tailwind replacements for Word compatibility */
+                    a { text-decoration: none; color: blue; }
                     [class*="text-["] { font-size: 10pt; }
                 </style>
             </head>
